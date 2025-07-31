@@ -43,17 +43,29 @@ def get_coin_gecko_data():
     df = pd.DataFrame(data)
     df["symbol_uc"] = df["symbol"].str.upper() + "USDT"
     return df[["id", "symbol_uc", "market_cap", "total_volume", "name", "last_updated"]]
-
+    
 @st.cache_data(show_spinner=False)
 def get_binance_symbols():
-    url = "https://api.binance.com/api/v3/exchangeInfo"
-    data = requests.get(url).json()
-    return [
-        s["symbol"] for s in data["symbols"]
-        if s["quoteAsset"] == "USDT"
-        and s["status"] == "TRADING"
-        and not any(x in s["symbol"] for x in ["UP", "DOWN", "BULL", "BEAR"])
-    ]
+    try:
+        url = "https://api.binance.com/api/v3/exchangeInfo"
+        response = requests.get(url, timeout=10)
+        data = response.json()
+
+        # Handle unexpected response
+        if "symbols" not in data:
+            st.error("❌ Binance API response missing 'symbols' key.")
+            st.write("Response content:", data)
+            return []
+
+        return [
+            s["symbol"] for s in data["symbols"]
+            if s["quoteAsset"] == "USDT"
+            and s["status"] == "TRADING"
+            and not any(x in s["symbol"] for x in ["UP", "DOWN", "BULL", "BEAR"])
+        ]
+    except Exception as e:
+        st.error(f"⚠️ Failed to fetch Binance symbols: {e}")
+        return []
 
 def fetch_ohlcv(symbol, interval="15m", limit=200):
     try:
