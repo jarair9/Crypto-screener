@@ -14,7 +14,7 @@ with col1:
 with col2:
     rsi_mode = st.selectbox("RSI Condition", ["Below", "Above"])
 with col3:
-    rsi_threshold = st.slider("RSI Threshold", 10, 90, 40 if rsi_mode == "Below" else 60)
+    rsi_threshold = st.slider("RSI Threshold", 10, 90, 30 if rsi_mode == "Below" else 70)
 
 # === Optional Toggles ===
 top100_volume = st.checkbox("✅ Only Top 100 by 24h Volume (Binance)", value=False)
@@ -41,9 +41,14 @@ def get_coin_gecko_data():
     response = requests.get(url, params=params)
     data = response.json()
     df = pd.DataFrame(data)
+
+    # Fix: Convert time & add symbol_uc
+    df["last_updated"] = pd.to_datetime(df["last_updated"], errors="coerce", utc=True)
     df["symbol_uc"] = df["symbol"].str.upper() + "USDT"
+
     return df[["id", "symbol_uc", "market_cap", "total_volume", "name", "last_updated"]]
-    
+
+
 @st.cache_data(show_spinner=False)
 def get_binance_symbols():
     try:
@@ -66,6 +71,7 @@ def get_binance_symbols():
     except Exception as e:
         st.error(f"⚠️ Failed to fetch Binance symbols: {e}")
         return []
+
 
 def fetch_ohlcv(symbol, interval="15m", limit=200):
     try:
@@ -103,6 +109,7 @@ def analyze(symbol, rsi_mode, rsi_threshold):
         return None
 
 # === Run Screener ===
+# === Run Screener ===
 if start:
     st.info("🌀 Gathering data...")
     binance_symbols = get_binance_symbols()
@@ -115,13 +122,15 @@ if start:
 
     # === Filter: Newly listed
     if new_listings:
-        recent = gecko_df[gecko_df["last_updated"] > pd.Timestamp.now() - pd.Timedelta(days=30)]
+        recent = gecko_df[
+            gecko_df["last_updated"] > pd.Timestamp.now(tz="UTC") - pd.Timedelta(days=30)
+        ]
         binance_symbols = [s for s in binance_symbols if s in recent["symbol_uc"].values]
 
     # === Filter: Market Cap Range
     if market_cap_filter:
         cap_range = gecko_df[
-            (gecko_df["market_cap"] >= min_cap) &
+            (gecko_df["market_cap"] >= min_cap) & 
             (gecko_df["market_cap"] <= max_cap)
         ]
         binance_symbols = [s for s in binance_symbols if s in cap_range["symbol_uc"].values]
